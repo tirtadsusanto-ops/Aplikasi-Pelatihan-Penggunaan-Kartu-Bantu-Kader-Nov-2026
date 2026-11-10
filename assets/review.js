@@ -1,0 +1,25 @@
+(function(){
+'use strict';
+const ITEMS=['Saya dapat membaca petunjuk modul pada perangkat yang saya gunakan.','Saya dapat memahami bahasa pada contoh pengisian kartu.','Saya dapat menemukan kolom kartu yang dijelaskan pada materi.','Saya dapat mengikuti contoh pengisian kartu dalam materi.','Saya dapat berpindah dari materi ke tes sesuai urutan.','Saya dapat memahami alasan jawaban saya dinilai salah atau belum lengkap.','Saya dapat melanjutkan kegiatan setelah menutup aplikasi.','Saya dapat memeriksa sertifikat dan lampiran seluruh percobaan.'];
+let urls=[];
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function clear(){urls.forEach(URL.revokeObjectURL);urls=[];}
+function preview(c){
+ const target=document.getElementById('certificate-pages');if(!target||!c)return;clear();urls=c.pagePreviews.map(b=>URL.createObjectURL(b));
+ target.innerHTML=`<p>Pilih nomor halaman untuk memeriksa sertifikat dan seluruh riwayat jawaban Anda.</p><div class="field"><label for="certificate-page-select">Halaman sertifikat</label><select id="certificate-page-select">${urls.map((_,i)=>`<option value="${i}">Halaman ${i+1} dari ${c.pageCount}</option>`).join('')}</select></div><div class="actions"><button class="btn secondary" id="certificate-previous">← Halaman sebelumnya</button><button class="btn secondary" id="certificate-next">Halaman berikutnya →</button></div><figure><figcaption id="certificate-page-caption"></figcaption><img class="preview-image" id="certificate-page-image" width="1200" height="1697"></figure>`;
+ const select=document.getElementById('certificate-page-select'),image=document.getElementById('certificate-page-image'),previous=document.getElementById('certificate-previous'),next=document.getElementById('certificate-next');
+ const show=n=>{select.value=String(n);image.src=urls[n];image.alt='Halaman '+(n+1)+' dari '+c.pageCount+' sertifikat';document.getElementById('certificate-page-caption').textContent='Halaman '+(n+1)+' dari '+c.pageCount;previous.disabled=n===0;next.disabled=n===urls.length-1;};
+ select.onchange=()=>show(Number(select.value));previous.onclick=()=>show(Math.max(0,Number(select.value)-1));next.onclick=()=>show(Math.min(urls.length-1,Number(select.value)+1));show(0);
+}
+function render(mod,rec){
+const r=rec.reaction||{ratings:Array(8).fill(''),difficulties:'',suggestions:''};
+const lessons=[...mod.lessons1.map(x=>({...x,part:1})),...mod.lessons2.map(x=>({...x,part:2}))];
+return `<section class="revisit"><h2 style="margin-top:32px">Buka lagi hal yang ingin Anda pelajari</h2><details id="review-material"><summary>Baca kembali materi 1 dan materi 2</summary>${lessons.map(x=>`<article class="review-lesson"><div class="eyebrow">Materi ${x.part}</div><h3>${esc(x.title)}</h3><p>${esc(x.text)}</p><ul>${(x.bullets||[]).map(b=>`<li>${esc(b)}</li>`).join('')}</ul>${x.example?`<p><strong>Contoh:</strong> ${esc(x.example)}</p>`:''}</article>`).join('')}</details></section><section class="reaction"><h2 style="margin-top:32px">Bagaimana pengalaman belajar Anda?</h2><p>Anda boleh memberi masukan. Masukan ini tidak mengubah nilai atau sertifikat Anda.</p><form id="reaction-form">${ITEMS.map((text,i)=>`<div class="field"><label for="reaction-${i}">${i+1}. ${esc(text)}</label><select id="reaction-${i}" name="rating${i}" required><option value="">Pilih jawaban</option>${[[1,'1 · Sangat tidak setuju'],[2,'2 · Tidak setuju'],[3,'3 · Setuju'],[4,'4 · Sangat setuju'],['na','Tidak menilai']].map(([v,label])=>`<option value="${v}" ${String(r.ratings[i])===String(v)?'selected':''}>${label}</option>`).join('')}</select></div>`).join('')}<div class="field"><label for="reaction-difficulties">Bagian apa yang masih sulit bagi Anda?</label><textarea id="reaction-difficulties" name="difficulties" maxlength="2000">${esc(r.difficulties)}</textarea></div><div class="field"><label for="reaction-suggestions">Apa saran Anda untuk memperbaiki pelatihan ini?</label><textarea id="reaction-suggestions" name="suggestions" maxlength="2000">${esc(r.suggestions)}</textarea></div><button class="btn secondary" id="save-reaction" type="submit">Simpan masukan saya</button><p id="reaction-status" role="status">${r.savedAt?'Masukan Anda sudah tersimpan.':''}</p></form></section>`;
+}
+function wire(rec,save){
+const form=document.getElementById('reaction-form');if(!form)return;
+const capture=()=>{if(rec.paused)return;const d=new FormData(form);rec.reaction={ratings:ITEMS.map((_,i)=>d.get('rating'+i)==='na'?'na':d.get('rating'+i)?Number(d.get('rating'+i)):''),difficulties:String(d.get('difficulties')||''),suggestions:String(d.get('suggestions')||''),savedAt:null};save();};
+form.addEventListener('input',capture);form.addEventListener('change',capture);form.addEventListener('submit',e=>{e.preventDefault();if(rec.paused)return;capture();rec.reaction.savedAt=new Date().toISOString();save();document.getElementById('reaction-status').textContent='Masukan Anda sudah tersimpan. Terima kasih.';});
+}
+window.KaderReview={render,wire,preview,clear};
+})();
